@@ -1,6 +1,6 @@
 import logging
 
-from elastic_cms import (fetch_access_token, get_all_products)
+from elastic_cms import (fetch_access_token, get_all_products, get_product_detail)
 
 from textwrap import dedent
 
@@ -23,10 +23,6 @@ def start(update: Update, context: CallbackContext) -> None:
     database = context.bot_data['redis_session']
     products = database.hgetall('products')
     message = 'Please choose:'
-    # keyboard = []
-    # for name, id in products.items():
-    #     keyboard.append([InlineKeyboardButton(name, callback_data=id)])
-
     keyboard = [
         [InlineKeyboardButton(name, callback_data=id)]
         for name, id in products.items()
@@ -38,9 +34,13 @@ def start(update: Update, context: CallbackContext) -> None:
 
 
 def button(update: Update, context: CallbackContext) -> None:
+    database = context.bot_data['redis_session']
+    access_token = database.get('access_token')
     query = update.callback_query
     query.answer()
-    query.edit_message_text(text=f'Ты выбрал: {query.data}')
+    product_detail = get_product_detail(access_token, query.data)
+
+    query.edit_message_text(product_detail)
 
 
 def cancel(update: Update, context: CallbackContext):

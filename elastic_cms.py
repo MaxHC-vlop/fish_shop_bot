@@ -35,7 +35,7 @@ def get_product_detail(access_token, product_id):
     headers = {'Authorization': f'Bearer {access_token}'}
     response = requests.get(url, headers=headers)
     response.raise_for_status()
-    product_detail = response.json()
+    product_detail = response.json()['data']['attributes']['description']
 
     return product_detail
 
