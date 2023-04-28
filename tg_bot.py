@@ -1,6 +1,6 @@
 import logging
 
-from elastic_cms import (fetch_access_token, get_all_products, get_product_detail)
+from elastic_cms import (fetch_access_token, get_all_products, get_product_detail, get_file_id, get_image_link)
 
 from textwrap import dedent
 
@@ -39,8 +39,16 @@ def button(update: Update, context: CallbackContext) -> None:
     query = update.callback_query
     query.answer()
     product_detail = get_product_detail(access_token, query.data)
+    file_id = get_file_id(access_token, query.data)
+    link = get_image_link(access_token, file_id)
 
-    query.edit_message_text(product_detail)
+    query.message.delete()
+
+    context.bot.send_photo(
+        chat_id=update.effective_chat.id,
+        photo=link,
+        caption=product_detail
+    )
 
 
 def cancel(update: Update, context: CallbackContext):

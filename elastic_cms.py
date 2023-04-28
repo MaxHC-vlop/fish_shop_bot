@@ -40,6 +40,28 @@ def get_product_detail(access_token, product_id):
     return product_detail
 
 
+def get_file_id(access_token, product_id):
+    url = f'https://api.moltin.com/pcm/products/{product_id}/relationships/main_image'
+    headers = {'Authorization': f'Bearer {access_token}'}
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+
+    file_id = response.json()['data']['id']
+
+    return file_id
+
+
+def get_image_link(access_token, file_id):
+    url = f'https://api.moltin.com/v2/files/{file_id}'
+    headers = {'Authorization': f'Bearer {access_token}'}
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+
+    image_link = response.json()['data']['link']['href']
+
+    return image_link
+
+
 def get_cart(access_token, cart_name):
     url = f'https://api.moltin.com/v2/carts/{cart_name}'
     headers = {
@@ -72,4 +94,5 @@ env.read_env()
 client_id = env.str('CLIENT_ID')
 client_secret = env.str('CLIENT_TOKEN')
 access_token = fetch_access_token(client_id, client_secret)
-print(get_product_detail(access_token, '832f5a1b-5f68-4bb1-9e30-c2e36395d400'))
+file_id = get_file_id(access_token, '832f5a1b-5f68-4bb1-9e30-c2e36395d400')
+print(get_image_link(access_token, file_id))
