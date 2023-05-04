@@ -1,6 +1,6 @@
 import requests
 
-from environs import Env
+from textwrap import dedent
 
 
 def fetch_access_token(client_id, client_secret):
@@ -63,13 +63,32 @@ def get_image_link(access_token, file_id):
 
 
 def get_cart(access_token, cart_name):
-    url = f'https://api.moltin.com/v2/carts/{cart_name}'
+    url = f'https://api.moltin.com/v2/carts/{cart_name}/items'
     headers = {
         'Authorization': f'Bearer {access_token}'
+    }
+    payload = {
+        'include': 'quantity'
     }
 
     response = requests.get(url, headers=headers)
     response.raise_for_status()
+    cart_items = response.json()
+    cart_info = {}
+    cart_info['total_price'] = cart_items['meta']['display_price']['with_tax']['formatted']
+    cart_info['products'] = {}
+    for item in cart_items['data']:
+        item_detail = {item['id']: {
+                'price': item['meta']['display_price']['with_tax']['unit']['formatted'],
+                'total': item['meta']['display_price']['with_tax']['value']['formatted'],
+                'quantity': item['quantity'],
+                'name': item['name']
+            }
+        }
+        cart_info['products'].update(item_detail)
+
+    return cart_info
+
 
 
 def add_product_to_cart(access_token, cart_name, product, quantity):
@@ -88,11 +107,30 @@ def add_product_to_cart(access_token, cart_name, product, quantity):
     response.raise_for_status()
 
 
-env = Env()
-env.read_env()
+def formated_message(items):
+    template_message = '''\
+        {name}
+        {price} per kg
+        {quantity}kg in cart for {total}\n
+    '''
+    message = ''
+    products = items['products']
+    for product in products:
+        temmplate = dedent(template_message.format_map(products[product]))
+        message += temmplate
+    
+    total_price = items['total_price']
+    message += f'total {total_price}'
+    if total_price == '0':
+        message = 'Cart is empty'
+    
+    return message
 
-client_id = env.str('CLIENT_ID')
-client_secret = env.str('CLIENT_TOKEN')
-access_token = fetch_access_token(client_id, client_secret)
-file_id = get_file_id(access_token, '832f5a1b-5f68-4bb1-9e30-c2e36395d400')
-print(get_image_link(access_token, file_id))
+
+def remove_item_from_cart(access_token, cart_id, product_id):
+    url = f'https://api.moltin.com/v2/carts/{cart_id}/items/{product_id}'
+    headers = {
+        'Authorization': f'Bearer {access_token}'
+    }
+    response = requests.delete(url, headers=headers)
+    response.raise_for_status()
