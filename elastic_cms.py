@@ -67,9 +67,6 @@ def get_cart(access_token, cart_name):
     headers = {
         'Authorization': f'Bearer {access_token}'
     }
-    payload = {
-        'include': 'quantity'
-    }
 
     response = requests.get(url, headers=headers)
     response.raise_for_status()
@@ -88,7 +85,6 @@ def get_cart(access_token, cart_name):
         cart_info['products'].update(item_detail)
 
     return cart_info
-
 
 
 def add_product_to_cart(access_token, cart_name, product, quantity):
@@ -118,12 +114,12 @@ def formated_message(items):
     for product in products:
         temmplate = dedent(template_message.format_map(products[product]))
         message += temmplate
-    
+
     total_price = items['total_price']
     message += f'total {total_price}'
     if total_price == '0':
         message = 'Cart is empty'
-    
+
     return message
 
 
@@ -133,4 +129,20 @@ def remove_item_from_cart(access_token, cart_id, product_id):
         'Authorization': f'Bearer {access_token}'
     }
     response = requests.delete(url, headers=headers)
+    response.raise_for_status()
+
+
+def make_client(access_token, name, email):
+    url = 'https://api.moltin.com/v2/customers'
+    headers = {
+        'Authorization': f'Bearer {access_token}'
+    }
+    payload = {
+        'data': {
+            'type': 'customer',
+            'name': name,
+            'email': email,
+        }
+    }
+    response = requests.post(url, headers=headers, json=payload)
     response.raise_for_status()

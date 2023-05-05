@@ -1,20 +1,16 @@
 import logging
 import enum
 
-from textwrap import dedent
-
 import elastic_cms
 
-import telegram
 import redis
 
 from environs import Env
+from telegram import Update, ReplyKeyboardRemove
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import CommandHandler, MessageHandler
 from telegram.ext import CallbackContext, CallbackQueryHandler
 from telegram.ext import Filters, Updater, ConversationHandler
-from telegram import ReplyKeyboardMarkup, Update
-from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-from telegram import ReplyKeyboardRemove
 
 
 logger = logging.getLogger(__file__)
@@ -23,7 +19,8 @@ logger = logging.getLogger(__file__)
 class UserStatus(enum.Enum):
     HANDLE_MENU = 0
     HANDLE_DESCRIPTION = 1
-    HANDLE_CART=2
+    HANDLE_CART = 2
+    WAITING_EMAIL = 3
 
 
 user_status = UserStatus(value=True)
@@ -42,8 +39,10 @@ def button(update: Update, context: CallbackContext) -> None:
 
     numbers = [1, 5, 10]
     keyboard = [
-        [InlineKeyboardButton(f'{number}кг', callback_data=number)
-        for number in numbers],
+        [
+            InlineKeyboardButton(f'{number}кг', callback_data=number)
+            for number in numbers
+        ],
         [InlineKeyboardButton('Меню', callback_data='menu')],
         [InlineKeyboardButton('Корзина', callback_data='cart')]
     ]
@@ -153,6 +152,38 @@ def remove_product(update: Update, context: CallbackContext):
     return show_cart(update, context)
 
 
+def pay(update: Update, context: CallbackContext):
+    message = 'Enter email adress'
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=message,
+    )
+
+    return user_status.WAITING_EMAIL
+
+
+def get_email(update: Update, context: CallbackContext):
+    database = context.bot_data['redis_session']
+    access_token = database.get('access_token')
+
+    email = update.message.text
+    access_token = database.get('access_token')
+    user_name = update.effective_chat.full_name
+
+    elastic_cms.make_client(access_token, user_name, email)
+
+    keyboard = [
+        [InlineKeyboardButton('Меню', callback_data='menu')],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.message.reply_text(
+        f'Succes! Your email: {email}',
+        reply_markup=reply_markup
+    )
+
+    return user_status.HANDLE_MENU
+
+
 def cancel(update: Update, context: CallbackContext):
     update.message.reply_text(
         'Счастливо! До новых встреч!',
@@ -200,12 +231,25 @@ def main():
             ],
             user_status.HANDLE_MENU: [
                 CallbackQueryHandler(menu, pattern=r'menu'),
-                CallbackQueryHandler(added_product_to_cart, pattern=r'\d{1,2}'),
+                CallbackQueryHandler(
+                    added_product_to_cart, pattern=r'\d{1,2}'
+                ),
                 CallbackQueryHandler(show_cart, pattern=r'cart'),
             ],
             user_status.HANDLE_CART: [
                 CallbackQueryHandler(menu, pattern=r'menu'),
-                CallbackQueryHandler(remove_product, pattern=r'[A-Za-z\d-]{36}'),
+                CallbackQueryHandler(
+                    remove_product, pattern=r'[A-Za-z\d-]{36}'
+                ),
+                CallbackQueryHandler(pay, pattern=r'pay'),
+            ],
+            user_status.WAITING_EMAIL: [
+                MessageHandler(
+                    Filters.regex(
+                        r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+                    ),
+                    get_email
+                )
             ]
         },
         fallbacks=[CommandHandler('cancel', cancel)],
