@@ -3,7 +3,10 @@ import enum
 
 import elastic_cms
 
+from tg_log_handler import TelegramLogsHandler
+
 import redis
+import telegram
 
 from environs import Env
 from telegram import Update, ReplyKeyboardRemove
@@ -26,7 +29,7 @@ class UserStatus(enum.Enum):
 user_status = UserStatus(value=True)
 
 
-def button(update: Update, context: CallbackContext) -> None:
+def get_product_description(update: Update, context: CallbackContext):
     database = context.bot_data['redis_session']
     access_token = database.get('access_token')
     query = update.callback_query
@@ -61,7 +64,7 @@ def button(update: Update, context: CallbackContext) -> None:
     return user_status.HANDLE_MENU
 
 
-def menu(update: Update, context: CallbackContext) -> None:
+def menu(update: Update, context: CallbackContext):
     database = context.bot_data['redis_session']
     products = database.hgetall('products')
     message = 'Please choose:'
@@ -197,11 +200,15 @@ def main():
     env = Env()
     env.read_env()
     token = env.str('TG_TOKEN')
+    tg_token_admin = env.str('TG_LOGGER_TOKEN')
+    tg_chat_id = env.str('TG_ADMIN_CHAT_ID')
     database_password = env.str('REDIS_DATABASE_PASSWORD')
     database_host = env.str('REDIS_DATABASE_HOST')
     database_port = env.int('REDIS_DATABASE_PORT')
     client_id = env.str('CLIENT_ID')
     client_secret = env.str('CLIENT_TOKEN')
+
+    tg_adm_bot = telegram.Bot(token=tg_token_admin)
 
     database = redis.Redis(
         host=database_host,
@@ -222,11 +229,20 @@ def main():
 
     dispatcher.bot_data['redis_session'] = database
 
+    logging.basicConfig(
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        level=logging.INFO
+    )
+    logger.addHandler(TelegramLogsHandler(tg_adm_bot, tg_chat_id))
+    logger.info('TG bot running...')
+
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', menu)],
         states={
             user_status.HANDLE_DESCRIPTION: [
-                CallbackQueryHandler(button, pattern=r'[A-Za-z\d-]{36}'),
+                CallbackQueryHandler(
+                    get_product_description, pattern=r'[A-Za-z\d-]{36}'
+                ),
                 CallbackQueryHandler(show_cart, pattern=r'cart'),
             ],
             user_status.HANDLE_MENU: [
