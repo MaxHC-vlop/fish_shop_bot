@@ -52,14 +52,14 @@ def get_product_description(update: Update, context: CallbackContext):
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    query.message.delete()
-
     context.bot.send_photo(
         chat_id=update.effective_chat.id,
         photo=link,
         caption=product_detail,
         reply_markup=reply_markup
     )
+
+    query.message.delete()
 
     return user_status.HANDLE_MENU
 
