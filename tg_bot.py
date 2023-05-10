@@ -16,6 +16,9 @@ from telegram.ext import CallbackContext, CallbackQueryHandler
 from telegram.ext import Filters, Updater, ConversationHandler
 
 
+JOB_INTERVAL = 86400
+JOB_START = 1
+
 logger = logging.getLogger(__file__)
 
 
@@ -196,6 +199,18 @@ def cancel(update: Update, context: CallbackContext):
     return ConversationHandler.END
 
 
+def get_store_content(context: CallbackContext):
+    database = context.bot_data['redis_session']
+    client_id = context.bot_data['client_id']
+    client_secret = context.bot_data['client_secret']
+
+    access_token = elastic_cms.fetch_access_token(client_id, client_secret)
+    products = elastic_cms.get_all_products(access_token)
+
+    database.set('access_token', access_token)
+    database.hset('products', mapping=products)
+
+
 def main():
     env = Env()
     env.read_env()
@@ -218,16 +233,17 @@ def main():
         decode_responses=True
     )
 
-    access_token = elastic_cms.fetch_access_token(client_id, client_secret)
-    products = elastic_cms.get_all_products(access_token)
-
-    database.set('access_token', access_token)
-    database.hset('products', mapping=products)
-
     updater = Updater(token)
     dispatcher = updater.dispatcher
+    job_queue = dispatcher.job_queue
 
     dispatcher.bot_data['redis_session'] = database
+    dispatcher.bot_data['client_id'] = client_id
+    dispatcher.bot_data['client_secret'] = client_secret
+
+    job_queue.run_repeating(
+        get_store_content, first=JOB_START, interval=JOB_INTERVAL
+    )
 
     logging.basicConfig(
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
