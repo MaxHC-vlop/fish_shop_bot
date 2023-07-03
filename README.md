@@ -1,4 +1,4 @@
-# Sending notifications
+# Fish shop bot
 
 Bot for selling fish in telegram.
 
